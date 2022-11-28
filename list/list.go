@@ -20,10 +20,10 @@ const NotFound = -1
 // entire page (ie: visible size). It keeps track of the current selected item.
 type List struct {
 	items    []*interface{}
-	scope    []*interface{}
-	cursor   int // cursor holds the index of the current selected item
-	size     int // size is the number of visible options
-	start    int
+	scope    []*interface{} // scope is used in the search mode
+	cursor   int            // cursor holds the index of the current selected item
+	size     int            // size is the number of visible options
+	start    int            // start is the index of showing firstly in the window
 	Searcher Searcher
 }
 
@@ -65,7 +65,7 @@ func (l *List) Prev() {
 // Search allows the list to be filtered by a given term. The list must
 // implement the searcher function signature for this functionality to work.
 func (l *List) Search(term string) {
-	term = strings.Trim(term, " ")
+	term = strings.TrimSpace(term)
 	l.cursor = 0
 	l.start = 0
 	l.search(term)

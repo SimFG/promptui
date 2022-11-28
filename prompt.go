@@ -58,19 +58,22 @@ type Prompt struct {
 // text/template syntax. Custom state, colors and background color are available for use inside
 // the templates and are documented inside the Variable section of the docs.
 //
-// Examples
+// # Examples
 //
 // text/templates use a special notation to display programmable content. Using the double bracket notation,
 // the value can be printed with specific helper functions. For example
 //
 // This displays the value given to the template as pure, unstylized text.
-// 	'{{ . }}'
+//
+//	'{{ . }}'
 //
 // This displays the value colored in cyan
-// 	'{{ . | cyan }}'
+//
+//	'{{ . | cyan }}'
 //
 // This displays the value colored in red with a cyan background-color
-// 	'{{ . | red | cyan }}'
+//
+//	'{{ . | red | cyan }}'
 //
 // See the doc of text/template for more info: https://golang.org/pkg/text/template/
 type PromptTemplates struct {
@@ -141,6 +144,11 @@ func (p *Prompt) Run() (string, error) {
 	}
 	// we're taking over the cursor,  so stop showing it.
 	rl.Write([]byte(hideCursor))
+	defer func() {
+		rl.Write([]byte(showCursor))
+		rl.Close()
+	}()
+
 	sb := screenbuf.New(rl)
 
 	validFn := func(x string) error {
@@ -216,8 +224,6 @@ func (p *Prompt) Run() (string, error) {
 		sb.Reset()
 		sb.WriteString("")
 		sb.Flush()
-		rl.Write([]byte(showCursor))
-		rl.Close()
 		return "", err
 	}
 
@@ -244,9 +250,6 @@ func (p *Prompt) Run() (string, error) {
 		sb.Write(prompt)
 		sb.Flush()
 	}
-
-	rl.Write([]byte(showCursor))
-	rl.Close()
 
 	return cur.Get(), err
 }
