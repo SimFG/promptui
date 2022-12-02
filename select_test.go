@@ -2,6 +2,7 @@ package promptui
 
 import (
 	"bytes"
+	"fmt"
 	"testing"
 
 	"github.com/manifoldco/promptui/screenbuf"
@@ -165,4 +166,26 @@ func TestClearScreen(t *testing.T) {
 	if except != got {
 		t.Errorf("expected %q, got %q", except, got)
 	}
+}
+
+type A struct {
+	isClose bool
+}
+
+func (a A) IsClose() bool {
+	return a.isClose
+}
+
+type B struct {
+	A
+	name string
+}
+
+func TestConvert(t *testing.T) {
+	b := &B{name: "foo"}
+	fmt.Println(b.IsClose())
+	b.A = A{isClose: true}
+	fmt.Println(b.IsClose())
+	b.A.isClose = false
+	fmt.Println(b.IsClose())
 }

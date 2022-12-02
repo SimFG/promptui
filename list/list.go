@@ -3,13 +3,14 @@ package list
 import (
 	"fmt"
 	"reflect"
-	"strings"
 )
 
 // Searcher is a base function signature that is used inside select when activating the search mode.
 // If defined, it is called on each items of the select and should return a boolean for whether or not
 // the item fits the searched term.
 type Searcher func(input string, index int) bool
+
+type ItemGenerator func(input string) []*interface{}
 
 // NotFound is an index returned when no item was selected. This could
 // happen due to a search without results.
@@ -19,12 +20,13 @@ const NotFound = -1
 // visible items. The list can be moved up, down by one item of time or an
 // entire page (ie: visible size). It keeps track of the current selected item.
 type List struct {
-	items    []*interface{}
-	scope    []*interface{} // scope is used in the search mode
-	cursor   int            // cursor holds the index of the current selected item
-	size     int            // size is the number of visible options
-	start    int            // start is the index of showing firstly in the window
-	Searcher Searcher
+	items         []*interface{}
+	scope         []*interface{} // scope is used in the search mode
+	cursor        int            // cursor holds the index of the current selected item
+	size          int            // size is the number of visible options
+	start         int            // start is the index of showing firstly in the window
+	Searcher      Searcher
+	ItemGenerator ItemGenerator
 }
 
 // New creates and initializes a list of searchable items. The items attribute must be a slice type with a
@@ -38,6 +40,12 @@ func New(items interface{}, size int) (*List, error) {
 		return nil, fmt.Errorf("items %v is not a slice", items)
 	}
 
+	values := GetItemFromInterface(items)
+
+	return &List{size: size, items: values, scope: values}, nil
+}
+
+func GetItemFromInterface(items interface{}) []*interface{} {
 	slice := reflect.ValueOf(items)
 	values := make([]*interface{}, slice.Len())
 
@@ -45,8 +53,7 @@ func New(items interface{}, size int) (*List, error) {
 		item := slice.Index(i).Interface()
 		values[i] = &item
 	}
-
-	return &List{size: size, items: values, scope: values}, nil
+	return values
 }
 
 // Prev moves the visible list back one item. If the selected item is out of
@@ -65,9 +72,13 @@ func (l *List) Prev() {
 // Search allows the list to be filtered by a given term. The list must
 // implement the searcher function signature for this functionality to work.
 func (l *List) Search(term string) {
-	term = strings.TrimSpace(term)
+	// TODO fubang
+	//term = strings.TrimSpace(term)
 	l.cursor = 0
 	l.start = 0
+	if l.ItemGenerator != nil {
+		l.items = l.ItemGenerator(term)
+	}
 	l.search(term)
 }
 

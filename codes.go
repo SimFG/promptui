@@ -118,3 +118,10 @@ func Styler(attrs ...attribute) func(interface{}) string {
 		return fmt.Sprintf("%s%sm%v%s", esc, seq, v, end)
 	}
 }
+
+func GetBackspace(count int) (res []byte) {
+	for i := 0; i < count; i++ {
+		res = append(res, '\b')
+	}
+	return
+}

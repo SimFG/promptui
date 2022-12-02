@@ -18,6 +18,13 @@ import (
 // SelectWithAdd's logic.
 const SelectedAdd = -1
 
+// ExitFunc i is meaning the current index, j is meaning the all item index
+type ExitFunc func(i, j int) ([]byte, bool)
+
+var DefaultExitFunc = func(i, j int) ([]byte, bool) {
+	return []byte{}, i != list.NotFound
+}
+
 // Select represents a list of items used to enable selections, they can be used as search engines, menus
 // or as a list of items in a cli based prompt.
 type Select struct {
@@ -26,7 +33,8 @@ type Select struct {
 	//
 	// The value for Label can be a simple string or a struct that will need to be accessed by dot notation
 	// inside the templates. For example, `{{ .Name }}` will display the name property of a struct.
-	Label interface{}
+	Label     interface{}
+	HideLabel bool
 
 	// Items are the items to display inside the list. It expect a slice of any kind of values, including strings.
 	//
@@ -67,16 +75,21 @@ type Select struct {
 	// Search is a function that will receive the searched term and the item's index and should return a boolean
 	// for whether or not the terms are alike. It is unimplemented by default and search will not work unless
 	// it is implemented.
-	Searcher list.Searcher
+	Searcher      list.Searcher
+	ItemGenerator list.ItemGenerator
+	SearchPrompt  string
 
 	// StartInSearchMode sets whether or not the select mode should start in search mode or selection mode.
 	// For search mode to work, the Search property must be implemented.
-	StartInSearchMode bool
+	StartInSearchMode      bool
+	DisableExistSearchMode bool
 
 	list *list.List
 
 	// A function that determines how to render the cursor
 	Pointer Pointer
+
+	ExitFunc ExitFunc
 
 	Stdin  io.ReadCloser
 	Stdout io.WriteCloser
@@ -210,6 +223,13 @@ func (s *Select) RunCursorAt(cursorPos, scroll int) (int, string, error) {
 		return 0, "", err
 	}
 	l.Searcher = s.Searcher
+	l.ItemGenerator = s.ItemGenerator
+	if s.SearchPrompt == "" {
+		s.SearchPrompt = SearchPrompt
+	}
+	if s.ExitFunc == nil {
+		s.ExitFunc = DefaultExitFunc
+	}
 
 	s.list = l
 
@@ -260,7 +280,12 @@ func (s *Select) innerRun(cursorPos, scroll int, top rune) (int, string, error) 
 	s.list.SetCursor(cursorPos)
 	s.list.SetStart(scroll)
 
+	var currentLine string
 	c.SetListener(func(line []rune, pos int, key rune) ([]rune, int, bool) {
+		if len(line) == 0 && currentLine != "" {
+			line = []rune(currentLine)
+		}
+		//line = append([]rune(currentLine), line...)
 		switch {
 		case key == KeyEnter:
 			return nil, 0, true
@@ -273,7 +298,7 @@ func (s *Select) innerRun(cursorPos, scroll int, top rune) (int, string, error) 
 				break
 			}
 
-			if searchMode {
+			if searchMode && !s.DisableExistSearchMode {
 				searchMode = false
 				cur.Replace("")
 				s.list.CancelSearch()
@@ -303,15 +328,17 @@ func (s *Select) innerRun(cursorPos, scroll int, top rune) (int, string, error) 
 		}
 
 		if searchMode {
-			header := SearchPrompt + cur.Format()
+			header := s.SearchPrompt + cur.Format()
 			sb.WriteString(header)
 		} else if !s.HideHelp {
 			help := s.renderHelp(canSearch)
 			sb.Write(help)
 		}
 
-		label := render(s.Templates.label, s.Label)
-		sb.Write(label)
+		if !s.HideLabel {
+			label := render(s.Templates.label, s.Label)
+			sb.Write(label)
+		}
 
 		items, idx := s.list.Items()
 		last := len(items) - 1
@@ -361,7 +388,7 @@ func (s *Select) innerRun(cursorPos, scroll int, top rune) (int, string, error) 
 	})
 
 	for {
-		_, err = rl.Readline()
+		currentLine, err = rl.Readline()
 
 		if err != nil {
 			switch {
@@ -374,10 +401,12 @@ func (s *Select) innerRun(cursorPos, scroll int, top rune) (int, string, error) 
 		}
 
 		_, idx := s.list.Items()
-		if idx != list.NotFound {
+		data, exit := s.ExitFunc(idx, s.list.Index())
+		if exit {
 			break
 		}
 
+		currentLine += string(data)
 	}
 
 	if err != nil {
